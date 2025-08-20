@@ -5,14 +5,17 @@ Example usage: uv run examples/aloha_real/convert_aloha_data_to_lerobot.py --raw
 """
 
 import dataclasses
+import os
 from pathlib import Path
 import shutil
 from typing import Literal
 
 import h5py
-from lerobot.common.datasets.lerobot_dataset import LEROBOT_HOME
+# Custom output directory - change this to your desired path
+CUSTOM_OUTPUT_DIR = "/home/aloha/Disk2/yihao/converted_datasets"
+LEROBOT_HOME = Path(os.getenv("HF_LEROBOT_HOME", CUSTOM_OUTPUT_DIR))
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
-from lerobot.common.datasets.push_dataset_to_hub._download_raw import download_raw
+# from lerobot.common.datasets.push_dataset_to_hub._download_raw import download_raw  # Not available in this LeRobot version
 import numpy as np
 import torch
 import tqdm
@@ -58,7 +61,7 @@ def create_empty_dataset(
     ]
     cameras = [
         "cam_high",
-        "cam_low",
+        # "cam_low",
         "cam_left_wrist",
         "cam_right_wrist",
     ]
@@ -181,7 +184,6 @@ def load_raw_episode_data(
             ep,
             [
                 "cam_high",
-                "cam_low",
                 "cam_left_wrist",
                 "cam_right_wrist",
             ],
@@ -209,6 +211,7 @@ def populate_dataset(
             frame = {
                 "observation.state": state[i],
                 "action": action[i],
+                "task": task,
             }
 
             for camera, img_array in imgs_per_cam.items():
@@ -221,7 +224,7 @@ def populate_dataset(
 
             dataset.add_frame(frame)
 
-        dataset.save_episode(task=task)
+        dataset.save_episode()
 
     return dataset
 
@@ -234,7 +237,7 @@ def port_aloha(
     *,
     episodes: list[int] | None = None,
     push_to_hub: bool = True,
-    is_mobile: bool = False,
+    is_mobile: bool = True,
     mode: Literal["video", "image"] = "image",
     dataset_config: DatasetConfig = DEFAULT_DATASET_CONFIG,
 ):
@@ -242,9 +245,7 @@ def port_aloha(
         shutil.rmtree(LEROBOT_HOME / repo_id)
 
     if not raw_dir.exists():
-        if raw_repo_id is None:
-            raise ValueError("raw_repo_id must be provided if raw_dir does not exist")
-        download_raw(raw_dir, repo_id=raw_repo_id)
+        raise ValueError(f"Raw data directory {raw_dir} does not exist. Please provide a valid path to your ALOHA dataset.")
 
     hdf5_files = sorted(raw_dir.glob("episode_*.hdf5"))
 
@@ -262,8 +263,6 @@ def port_aloha(
         task=task,
         episodes=episodes,
     )
-    dataset.consolidate()
-
     if push_to_hub:
         dataset.push_to_hub()
 
