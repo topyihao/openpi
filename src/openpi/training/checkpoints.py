@@ -91,6 +91,13 @@ def save_state(
     # Split params that can be used for inference into a separate item.
     with at.disable_typechecking():
         train_state, params = _split_params(state)
+
+    # Optionally skip saving optimizer state to avoid large train_state serialization.
+    # Set OPENPI_CKPT_SAVE_OPT_STATE=0 to drop optimizer state from the checkpoint.
+    save_opt_state = os.environ.get("OPENPI_CKPT_SAVE_OPT_STATE", "1") == "1"
+    if not save_opt_state:
+        with at.disable_typechecking():
+            train_state = dataclasses.replace(train_state, opt_state=None)
     # Allow saving only params via env var to reduce serialization load when debugging crashes.
     # Set OPENPI_CKPT_SAVE_PARAMS_ONLY=1 to skip saving optimizer state/train_state.
     save_params_only = os.environ.get("OPENPI_CKPT_SAVE_PARAMS_ONLY", "0") == "1"
