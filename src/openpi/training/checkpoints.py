@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-import concurrent.futures as futures
 import dataclasses
 import logging
 import os
@@ -10,7 +8,7 @@ from typing import Protocol
 from etils import epath
 import jax
 import orbax.checkpoint as ocp
-import orbax.checkpoint.future as future
+ 
 
 from openpi.shared import array_typing as at
 import openpi.shared.normalize as _normalize
@@ -38,22 +36,31 @@ def initialize_checkpoint_dir(
 
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-    # Allow opting out of async checkpointing via env var if the platform has issues with background threads.
-    # Set OPENPI_SYNC_CKPT=1 to disable async checkpointing.
-    async_options = None if os.environ.get("OPENPI_SYNC_CKPT", "0") == "1" else ocp.AsyncOptions(timeout_secs=7200)
+    # Allow forcing synchronous checkpointing to reduce peak memory usage during save.
+    # Set OPENPI_SYNC_CKPT=1 to disable Orbax async checkpointing.
+    sync_ckpt = os.environ.get("OPENPI_SYNC_CKPT", "0") == "1"
+
+    # Choose checkpoint storage format. OCDBT is default but can trigger C++/TensorStore issues on some systems.
+    # Set OPENPI_CKPT_FORMAT=zarr3 to use Zarr v3 driver (pure files). This can be more stable.
+    ckpt_format = os.environ.get("OPENPI_CKPT_FORMAT", "ocdbt").lower()
+    use_ocdbt = ckpt_format == "ocdbt"
+    use_zarr3 = ckpt_format == "zarr3"
+
+    train_state_handler = ocp.PyTreeCheckpointHandler(use_ocdbt=use_ocdbt, use_zarr3=use_zarr3)
+    params_handler = ocp.PyTreeCheckpointHandler(use_ocdbt=use_ocdbt, use_zarr3=use_zarr3)
 
     mngr = ocp.CheckpointManager(
         checkpoint_dir,
         item_handlers={
             "assets": CallbackHandler(),
-            "train_state": ocp.PyTreeCheckpointHandler(),
-            "params": ocp.PyTreeCheckpointHandler(),
+            "train_state": train_state_handler,
+            "params": params_handler,
         },
         options=ocp.CheckpointManagerOptions(
             max_to_keep=1,
             keep_period=keep_period,
             create=False,
-            async_options=async_options,
+            enable_async_checkpointing=not sync_ckpt,
         ),
     )
 
@@ -133,15 +140,12 @@ class Callback(Protocol):
     def __call__(self, directory: epath.Path) -> None: ...
 
 
-class CallbackHandler(ocp.AsyncCheckpointHandler):
-    """A CheckpointHandler for calling an arbitrary function asynchronously. Only for saving, not for restoring."""
+class CallbackHandler(ocp.CheckpointHandler):
+    """A synchronous CheckpointHandler for invoking a callback during save. Only for saving, not for restoring."""
 
     def save(self, directory: epath.Path, args: CallbackSave):
         if jax.process_index() == 0:
             args.callback(directory)
-
-    async def async_save(self, directory: epath.Path, args: CallbackSave) -> list[futures.Future]:
-        return [future.CommitFutureAwaitingContractedSignals(asyncio.to_thread(self.save, directory, args))]
 
     def restore(self, *args, **kwargs):
         raise NotImplementedError("CallbackHandler does not support restore")
