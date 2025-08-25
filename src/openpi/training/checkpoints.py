@@ -4,6 +4,7 @@ import asyncio
 import concurrent.futures as futures
 import dataclasses
 import logging
+import os
 from typing import Protocol
 
 from etils import epath
@@ -37,6 +38,10 @@ def initialize_checkpoint_dir(
 
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
+    # Allow opting out of async checkpointing via env var if the platform has issues with background threads.
+    # Set OPENPI_SYNC_CKPT=1 to disable async checkpointing.
+    async_options = None if os.environ.get("OPENPI_SYNC_CKPT", "0") == "1" else ocp.AsyncOptions(timeout_secs=7200)
+
     mngr = ocp.CheckpointManager(
         checkpoint_dir,
         item_handlers={
@@ -48,7 +53,7 @@ def initialize_checkpoint_dir(
             max_to_keep=1,
             keep_period=keep_period,
             create=False,
-            async_options=ocp.AsyncOptions(timeout_secs=7200),
+            async_options=async_options,
         ),
     )
 
@@ -68,6 +73,7 @@ def save_state(
     data_loader: _data_loader.DataLoader,
     step: int,
 ):
+    logging.info(f"Saving checkpoint at step {step}...")
     def save_assets(directory: epath.Path):
         # Save the normalization stats.
         data_config = data_loader.data_config()
@@ -78,11 +84,20 @@ def save_state(
     # Split params that can be used for inference into a separate item.
     with at.disable_typechecking():
         train_state, params = _split_params(state)
-    items = {
-        "assets": save_assets,
-        "train_state": train_state,
-        "params": {"params": params},
-    }
+    # Allow saving only params via env var to reduce serialization load when debugging crashes.
+    # Set OPENPI_CKPT_SAVE_PARAMS_ONLY=1 to skip saving optimizer state/train_state.
+    save_params_only = os.environ.get("OPENPI_CKPT_SAVE_PARAMS_ONLY", "0") == "1"
+    if save_params_only:
+        items = {
+            "assets": save_assets,
+            "params": {"params": params},
+        }
+    else:
+        items = {
+            "assets": save_assets,
+            "train_state": train_state,
+            "params": {"params": params},
+        }
     checkpoint_manager.save(step, items)
 
 

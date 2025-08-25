@@ -12,7 +12,7 @@ from typing import Literal
 
 import h5py
 # Custom output directory - change this to your desired path
-CUSTOM_OUTPUT_DIR = "/home/aloha/Disk2/yihao/converted_datasets"
+CUSTOM_OUTPUT_DIR = "/home/allied/Disk2/Yihao/lerobot_dataset"
 LEROBOT_HOME = Path(os.getenv("HF_LEROBOT_HOME", CUSTOM_OUTPUT_DIR))
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 # from lerobot.common.datasets.push_dataset_to_hub._download_raw import download_raw  # Not available in this LeRobot version
