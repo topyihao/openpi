@@ -1,4 +1,5 @@
 import dataclasses
+import os
 import functools
 import logging
 import platform
@@ -208,6 +209,9 @@ def main(config: _config.TrainConfig):
     mesh = sharding.make_mesh(config.fsdp_devices)
     data_sharding = jax.sharding.NamedSharding(mesh, jax.sharding.PartitionSpec(sharding.DATA_AXIS))
     replicated_sharding = jax.sharding.NamedSharding(mesh, jax.sharding.PartitionSpec())
+
+    # Force synchronous checkpointing.
+    os.environ["OPENPI_SYNC_CKPT"] = "1"
 
     checkpoint_manager, resuming = _checkpoints.initialize_checkpoint_dir(
         config.checkpoint_dir,

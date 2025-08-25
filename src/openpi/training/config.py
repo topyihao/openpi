@@ -419,7 +419,7 @@ class TrainConfig:
     # Base directory for config assets (e.g., norm stats).
     assets_base_dir: str = "/home/allied/Disk2/Yihao/assets/pizero_assets"
     # Base directory for checkpoints.
-    checkpoint_base_dir: str = "/home/allied/Disk2/Yihao/checkpoints/openpi_pizerofast"
+    checkpoint_base_dir: str = "/home/allied/checkpoints/pi_zero"
 
     # Random seed that will be used by random generators during training.
     seed: int = 42
@@ -434,7 +434,7 @@ class TrainConfig:
     # How often (in steps) to log training metrics.
     log_interval: int = 100
     # How often (in steps) to save checkpoints.
-    save_interval: int = 1000
+    save_interval: int = 2000
     # If set, any existing checkpoints matching step % keep_period == 0 will not be deleted.
     keep_period: int | None = 5000
 
