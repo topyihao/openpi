@@ -1,0 +1,3 @@
+bash -lc "export HF_LEROBOT_HOME=/home/allied/Disk2/Yihao/lerobot_dataset && uv run --active scripts/compute_norm_stats.py --config-name pi0_fast_aloha_yihao_lora --max-frames 2000 | cat"
+
+bash -lc "export HF_LEROBOT_HOME=/home/allied/Disk2/Yihao/lerobot_dataset && XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 uv run --active scripts/train.py pi0_fast_aloha_yihao_lora --exp-name=yihao_lora_run1 --checkpoint-base-dir=/home/allied/Disk2/Yihao/checkpoints/openpi --overwrite | cat"

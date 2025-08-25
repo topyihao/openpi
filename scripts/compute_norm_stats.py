@@ -5,6 +5,30 @@ will compute the mean and standard deviation of the data in the dataset and save
 to the config assets directory.
 """
 
+# Ensure parquet feature compatibility (e.g., support for 'List' in HF datasets)
+try:  # noqa: SIM105
+    import pyarrow_hotfix  # type: ignore  # noqa: F401
+except Exception:  # noqa: BLE001
+    pass
+
+# Workaround: some parquet datasets encode features with type 'List'.
+# Newer datasets versions register 'Sequence' or 'LargeList' instead.
+try:  # noqa: SIM105
+    import datasets
+    from datasets import features as ds_features  # type: ignore
+
+    if not hasattr(ds_features, "_FEATURE_TYPES"):
+        # Older versions may not expose the registry; skip.
+        pass
+    else:
+        if "List" not in ds_features._FEATURE_TYPES:
+            # Alias 'List' to 'Sequence' to support legacy parquet metadata.
+            ds_features._FEATURE_TYPES["List"] = ds_features._FEATURE_TYPES.get(
+                "Sequence", getattr(ds_features, "Sequence", None)
+            )
+except Exception:  # noqa: BLE001
+    pass
+
 import numpy as np
 import tqdm
 import tyro
