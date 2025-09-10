@@ -25,9 +25,19 @@ class ActionChunkBroker(_base_policy.BasePolicy):
 
     @override
     def infer(self, obs: Dict) -> Dict:  # noqa: UP006
-        if self._last_results is None:
+        # Check if we need a new inference or if current chunk is exhausted
+        if self._last_results is None or self._cur_step >= self._action_horizon:
             self._last_results = self._policy.infer(obs)
             self._cur_step = 0
+            
+            # Update action_horizon based on actual chunk size to handle mismatches
+            if self._last_results is not None:
+                for key, value in self._last_results.items():
+                    if isinstance(value, np.ndarray) and value.ndim > 0:
+                        actual_chunk_size = value.shape[0]
+                        if actual_chunk_size != self._action_horizon:
+                            self._action_horizon = actual_chunk_size
+                        break
 
         def slicer(x):
             if isinstance(x, np.ndarray):
@@ -37,9 +47,6 @@ class ActionChunkBroker(_base_policy.BasePolicy):
 
         results = tree.map_structure(slicer, self._last_results)
         self._cur_step += 1
-
-        if self._cur_step >= self._action_horizon:
-            self._last_results = None
 
         return results
 

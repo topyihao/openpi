@@ -17,7 +17,17 @@ from aloha.constants import (
     LEADER_GRIPPER_CLOSE_THRESH,
     LEADER_GRIPPER_JOINT_MID,
     START_ARM_POSE,
+    FOLLOWER_GRIPPER_JOINT_UNNORMALIZE_FN, 
+    FOLLOWER_GRIPPER_POSITION_NORMALIZE_FN
 )
+
+from constants import (
+    PUPPET_GRIPPER_POSITION_NORMALIZE_FN, 
+    PUPPET_GRIPPER_VELOCITY_NORMALIZE_FN, 
+    PUPPET_GRIPPER_JOINT_UNNORMALIZE_FN, 
+    MASTER_GRIPPER_JOINT_NORMALIZE_FN
+)
+
 from aloha.robot_utils import (
     enable_gravity_compensation,
     disable_gravity_compensation,
@@ -99,25 +109,6 @@ def get_robot_state(
     return state
 
 
-def follower_gripper_joint_unnormalize(normalized_value):
-    """Inverse of FOLLOWER_GRIPPER_JOINT_NORMALIZE_FN.
-    
-    The normalization typically maps actual gripper values to [0, 1] range.
-    This function maps back from [0, 1] to actual gripper range.
-    
-    Based on ALOHA constants, the actual gripper range is typically around:
-    - Closed: FOLLOWER_GRIPPER_JOINT_CLOSE (around 1.4)
-    - Open: Some minimum value (around -0.6)
-    """
-    # These values are estimated based on typical ALOHA gripper ranges
-    # You may need to adjust these based on your specific robot calibration
-    gripper_max = FOLLOWER_GRIPPER_JOINT_OPEN  # Fully open position
-    gripper_min = FOLLOWER_GRIPPER_JOINT_CLOSE   # Fully closed position (FOLLOWER_GRIPPER_JOINT_CLOSE)
-    
-    # Convert from [0, 1] normalized range back to actual gripper range
-    return normalized_value * (gripper_max - gripper_min) + gripper_min
-
-
 def apply_action(
     follower_bot_left: InterbotixManipulatorXS,
     follower_bot_right: InterbotixManipulatorXS,
@@ -142,9 +133,11 @@ def apply_action(
 
         # Unnormalize gripper actions from SmolVLA's normalized output
         # to actual gripper joint values that the robot expects
-        left_gripper_unnormalized = follower_gripper_joint_unnormalize(left_gripper_action)
-        right_gripper_unnormalized = follower_gripper_joint_unnormalize(right_gripper_action)
-        
+        left_gripper_unnormalized = FOLLOWER_GRIPPER_POSITION_NORMALIZE_FN(left_gripper_action)
+        right_gripper_unnormalized = FOLLOWER_GRIPPER_POSITION_NORMALIZE_FN(right_gripper_action)
+
+        # print(f"Left gripper: {left_gripper_action}, Left gripper unnormalized: {left_gripper_unnormalized}")
+        # print(f"Right gripper: {right_gripper_action}, Right gripper unnormalized: {right_gripper_unnormalized}")
         # Apply arm actions (position control)
 
         follower_bot_left.arm.set_joint_positions(left_arm_action, blocking=False)
@@ -219,9 +212,8 @@ def main(args: dict) -> None:
     save_dir = args.get('save_dir', '/tmp/robot_controller_images')
     control_frequency = args.get('control_frequency', 10.0)  # Hz
     
-    # Calculate sleep duration from frequency
-    control_dt = 1.0 / control_frequency
-    print(f"🔄 Control frequency: {control_frequency} Hz (dt = {control_dt:.4f}s)")
+
+    print(f"🔄 Control frequency: {control_frequency} Hz")
 
     # Connect to OpenPI policy server
     print(f"Connecting to OpenPI policy server at {host}:{port}")
@@ -281,10 +273,6 @@ def main(args: dict) -> None:
     print(f"🎯 Task: {task_description}")
     print("📷 Reading camera data and controlling robots with OpenPI policy")
     
-    if save_images:
-        print(f"💾 Camera images will be saved to: {save_dir}")
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
     
     # Signal handler for clean shutdown
     def signal_handler(signum, frame):
@@ -299,7 +287,6 @@ def main(args: dict) -> None:
     loop_start_time = time.time()
     try:
         while rclpy.ok():
-            iteration_start = time.time()
             
             # Get current robot state
             robot_state = get_robot_state(follower_bot_left, follower_bot_right)
@@ -336,6 +323,14 @@ def main(args: dict) -> None:
                 
                 # Apply the predicted action to the robots
                 apply_action(follower_bot_left, follower_bot_right, action, gripper_command, control_frequency)
+
+                # print action in readable format, action shap is (50, 14)
+                print(f"Action shape: {action.shape}")
+                print(f"Action: {action}")
+
+                loop_count += 1
+
+                time.sleep(0.2)
                 
 
                 
@@ -343,16 +338,7 @@ def main(args: dict) -> None:
                 print(f"❌ Error in control loop: {e}")
                 # Continue loop but don't apply action
             
-            # Calculate sleep time to maintain desired frequency
-            iteration_time = time.time() - iteration_start
-            sleep_time = max(0, control_dt - iteration_time)
-            
-            if sleep_time > 0:
-                time.sleep(sleep_time)
-            elif loop_count % 20 == 0:  # Warn about timing issues
-                print(f"⚠️  Control loop running slow: {iteration_time:.4f}s > {control_dt:.4f}s target")
-            
-            loop_count += 1
+
             
     except KeyboardInterrupt:
         print("\nReceived interrupt signal")
@@ -368,7 +354,8 @@ if __name__ == '__main__':
     parser.add_argument(
         '--host',
         type=str,
-        default='localhost',
+        # default='10.6.231.114',
+        default='0.0.0.0',
         help='OpenPI policy server host (default: localhost)'
     )
     parser.add_argument(
@@ -386,7 +373,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--task',
         type=str,
-        default="clean dish",
+        default="double-fold the shorts",
         help='Task description for the robot (default: "clean dish")'
     )
     parser.add_argument(

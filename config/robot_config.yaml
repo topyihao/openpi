@@ -1,0 +1,93 @@
+# OpenPI Robot Controller Configuration
+# This file contains all configuration parameters for the robot controller
+
+# Server Connection Settings
+server:
+  host: "localhost"
+  port: 8000
+
+# Control Parameters
+control:
+  max_publish_steps: 10000
+  publish_rate: 25  # Hz
+  control_frequency: 25  # Hz
+  action_horizon: 64
+
+# Task Settings
+task:
+  prompt: "pick up the red block"
+
+# Safety Settings
+safety:
+  disable_puppet_arm: false
+  use_robot_base: false
+
+# Movement Settings
+movement:
+  use_actions_interpolation: true
+  # Maximum joint movement per step for each joint (radians)
+  arm_steps_length: [0.01, 0.01, 0.01, 0.01, 0.01, 0.01]
+
+# ROS Topics
+topics:
+  # Camera topics
+  img_front: "/cam_high/camera/color/image_rect_raw/compressed"
+  img_left: "/cam_left_wrist/camera/color/image_rect_raw/compressed"
+  img_right: "/cam_right_wrist/camera/color/image_rect_raw/compressed"
+  
+  # Arm state topics
+  puppet_arm_left: "/follower_left/joint_states"
+  puppet_arm_right: "/follower_right/joint_states"
+  
+  # Arm command topics
+  puppet_arm_left_cmd: "/follower_left/commands/joint_group"
+  puppet_arm_right_cmd: "/follower_right/commands/joint_group"
+  puppet_arm_left_gripper_cmd: "/follower_left/commands/joint_single"
+  puppet_arm_right_gripper_cmd: "/follower_right/commands/joint_single"
+  
+  # Robot base topics
+  robot_base: "/odom_raw"
+  robot_base_cmd: "/cmd_vel"
+
+# Synchronization Settings
+sync:
+  rgb_threshold: 0.1  # seconds
+
+# Image Processing
+image:
+  render_height: 224
+  render_width: 224
+
+# Logging
+logging:
+  log_dir: "logs"
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+
+# Hardware Limits
+hardware:
+  # Gripper range mapping
+  gripper:
+    input_min: 0.0
+    input_max: 1.0
+    output_min: 0.6197
+    output_max: 1.6214
+  
+  # Joint limits (optional, for safety)
+  joint_limits:
+    # Format: [min, max] for each joint
+    waist: [-3.14, 3.14]
+    shoulder: [-2.0, 2.0]
+    elbow: [-2.0, 2.0]
+    forearm_roll: [-3.14, 3.14]
+    wrist_angle: [-2.0, 2.0]
+    wrist_rotate: [-3.14, 3.14]
+
+# Default Positions
+positions:
+  # Home position: [waist, shoulder, elbow, forearm_roll, wrist_angle, wrist_rotate, gripper]
+  home_left: [0.0, -1.822, 1.554, -0.008, -1.569, -0.008, 0.69]
+  home_right: [0.0, -1.822, 1.554, -0.008, -1.569, -0.008, 0.69]
+  
+  # Alternative positions for different tasks
+  ready_left: [0.0, -1.822, 1.554, -0.008, -1.569, -0.008, 1.65]
+  ready_right: [0.0, -1.822, 1.554, -0.008, -1.569, -0.008, 1.65]
